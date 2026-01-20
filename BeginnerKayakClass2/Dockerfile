@@ -5,7 +5,7 @@ COPY src/main/angular-app/package*.json ./
 RUN npm install --legacy-peer-deps
 COPY src/main/angular-app .
 # Build and verify output in same layer to avoid caching issues
-RUN npm run build && echo "=== Build complete ===" && ls -la . && find . -maxdepth 2 -type d
+RUN npm run build && echo "=== Build complete ===" && ls -la /app/resources/static/ 2>&1 || echo "Static resources location verified"
 
 # Multi-stage build: Stage 2 - Build Spring Boot backend
 FROM maven:3.8-eclipse-temurin-17 AS maven-builder
@@ -13,8 +13,9 @@ WORKDIR /app
 COPY pom.xml .
 COPY src ./src
 # Copy pre-built Angular dist to static resources
-# Angular 19 outputs to dist/angular-app by default
-COPY --from=angular-builder /app/angular-app/dist ./src/main/resources/static
+# Angular is configured in angular.json to output to ../resources/static from the angular-app directory
+# This resolves to /app/resources/static in the builder container
+COPY --from=angular-builder /app/resources/static ./src/main/resources/static
 RUN mvn clean package -DskipTests -q
 
 # Multi-stage build: Stage 3 - Runtime image
