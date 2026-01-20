@@ -2,7 +2,7 @@
 FROM node:18-alpine AS angular-builder
 WORKDIR /app/angular-app
 COPY src/main/angular-app/package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --legacy-peer-deps
 COPY src/main/angular-app .
 RUN npm run build
 
