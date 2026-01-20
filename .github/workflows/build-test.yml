@@ -1,0 +1,52 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Java 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Build Backend with Maven
+      run: mvn clean install
+    
+    - name: Run Backend Tests
+      run: mvn test
+    
+    - name: Set up Node.js 18
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'src/main/angular-app/package-lock.json'
+    
+    - name: Install Frontend Dependencies
+      working-directory: src/main/angular-app
+      run: npm ci
+    
+    - name: Build Angular Frontend
+      working-directory: src/main/angular-app
+      run: npm run build
+    
+    - name: Run Angular Tests
+      working-directory: src/main/angular-app
+      run: npm test -- --watch=false --browsers=ChromeHeadless
+    
+    - name: Build Docker Image
+      run: docker build -t beginner-kayak-class:${{ github.sha }} .
+    
+    - name: Verify Docker Build
+      run: docker run --rm beginner-kayak-class:${{ github.sha }} java -version
