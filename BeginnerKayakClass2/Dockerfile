@@ -4,9 +4,8 @@ WORKDIR /app/angular-app
 COPY src/main/angular-app/package*.json ./
 RUN npm install --legacy-peer-deps
 COPY src/main/angular-app .
-RUN npm run build
-# List dist contents for debugging
-RUN ls -la dist/ || echo "dist directory not found"
+# Build and verify output in same layer to avoid caching issues
+RUN npm run build && echo "=== Build complete ===" && ls -la . && find . -maxdepth 2 -type d
 
 # Multi-stage build: Stage 2 - Build Spring Boot backend
 FROM maven:3.8-eclipse-temurin-17 AS maven-builder
