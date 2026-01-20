@@ -5,14 +5,17 @@ COPY src/main/angular-app/package*.json ./
 RUN npm install --legacy-peer-deps
 COPY src/main/angular-app .
 RUN npm run build
+# List dist contents for debugging
+RUN ls -la dist/ || echo "dist directory not found"
 
 # Multi-stage build: Stage 2 - Build Spring Boot backend
 FROM maven:3.8-eclipse-temurin-17 AS maven-builder
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
-# Copy pre-built Angular dist to static resources (handle both dist and dist/angular-app paths)
-COPY --from=angular-builder /app/angular-app/dist/angular-app ./src/main/resources/static
+# Copy pre-built Angular dist to static resources
+# Angular 19 outputs to dist/angular-app by default
+COPY --from=angular-builder /app/angular-app/dist ./src/main/resources/static
 RUN mvn clean package -DskipTests -q
 
 # Multi-stage build: Stage 3 - Runtime image
