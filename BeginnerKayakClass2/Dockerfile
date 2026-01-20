@@ -11,8 +11,8 @@ FROM maven:3.8-eclipse-temurin-17 AS maven-builder
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
-# Copy pre-built Angular dist to static resources
-COPY --from=angular-builder /app/angular-app/dist ./src/main/resources/static
+# Copy pre-built Angular dist to static resources (handle both dist and dist/angular-app paths)
+COPY --from=angular-builder /app/angular-app/dist/angular-app ./src/main/resources/static
 RUN mvn clean package -DskipTests -q
 
 # Multi-stage build: Stage 3 - Runtime image
