@@ -2,7 +2,7 @@
 FROM node:18-alpine AS angular-builder
 WORKDIR /app/angular-app
 COPY src/main/angular-app/package*.json ./
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 COPY src/main/angular-app .
 RUN npm run build
 
