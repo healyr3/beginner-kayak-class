@@ -18,7 +18,7 @@ import {ShoppingResourcesComponent} from "./shopping-resources/shopping-resource
 
 
 export const routes: Routes = [
-    {path: '', component: IntroductionComponent},
+    {path: '', redirectTo: '/introduction', pathMatch: 'full'},
     {path: 'introduction', component: IntroductionComponent},
     {path: 'classroom', component: ClassroomComponent},
     {path: 'pool1', component: Pool1Component},
