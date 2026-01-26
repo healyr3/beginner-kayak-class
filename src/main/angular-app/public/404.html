@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beginner Kayak Class</title>
+    <script>
+        // SPA Redirect for GitHub Pages
+        // This handles all 404 errors by redirecting to index.html with the original path
+        // preserved in the URL hash for Angular Router to process
+        
+        // Get the current pathname and preserve query strings
+        var path = window.location.pathname;
+        var search = window.location.search;
+        var hash = window.location.hash;
+        
+        // Remove trailing slash if present (except for root)
+        if (path !== '/' && path.endsWith('/')) {
+            path = path.slice(0, -1);
+        }
+        
+        // Construct the redirect URL
+        // Store the original path in hash for Angular Router to handle
+        var redirectUrl = '/index.html?path=' + encodeURIComponent(path) + search;
+        
+        // Only redirect if we're not already at index.html
+        if (window.location.pathname !== '/index.html' && !window.location.pathname.endsWith('/')) {
+            window.history.replaceState(null, null, redirectUrl + hash);
+            window.location.href = redirectUrl + hash;
+        }
+    </script>
+</head>
+<body>
+    <p>Redirecting...</p>
+    <noscript>
+        <p>This site requires JavaScript to be enabled.</p>
+    </noscript>
+</body>
+</html>
