@@ -1,16 +1,17 @@
 # Deployment Guide - Beginner Kayak Class 2
 
-This guide provides comprehensive instructions for deploying the Beginner Kayak Class 2 application to production environments, with a focus on **DigitalOcean** hosting.
+> **📢 PROJECT MIGRATION**: This project has been converted from Spring Boot + Angular to a pure static Angular SPA. No backend server required.
+
+This guide covers deploying the Beginner Kayak Class 2 application to **GitHub Pages** (recommended for this project) or **DigitalOcean** for custom deployments.
 
 ## 📋 Table of Contents
+
 1. [Pre-Deployment Checklist](#pre-deployment-checklist)
-2. [DigitalOcean App Platform (Recommended)](#digitalocean-app-platform-recommended)
-3. [DigitalOcean Kubernetes (DOKS)](#digitalocean-kubernetes-doks)
-4. [Docker Hub Setup](#docker-hub-setup)
-5. [Database Setup](#database-setup)
-6. [SSL/HTTPS Configuration](#ssltls-configuration)
-7. [Monitoring & Logging](#monitoring--logging)
-8. [Troubleshooting](#troubleshooting)
+2. [GitHub Pages (Recommended)](#github-pages-recommended)
+3. [GitHub Pages with Custom Domain](#github-pages-with-custom-domain)
+4. [DigitalOcean Static Hosting](#digitalocean-static-hosting)
+5. [Local Development](#local-development)
+6. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -19,15 +20,12 @@ This guide provides comprehensive instructions for deploying the Beginner Kayak 
 Before deploying to production, ensure:
 
 - [ ] Code is committed to GitHub with clean git history
-- [ ] All build artifacts removed (`target/`, `node_modules/`, `.angular/`)
+- [ ] All build artifacts removed (`node_modules/`, `dist/`, `.angular/`)
 - [ ] `.gitignore` is properly configured
-- [ ] `application.properties` uses environment variables (not hardcoded values)
-- [ ] Database credentials stored as secrets, not in code
-- [ ] Application builds locally: `mvn clean install`
-- [ ] Docker image builds successfully: `docker build .`
-- [ ] Tests pass: `mvn test`
-- [ ] Frontend builds: `cd src/main/angular-app && npm run build`
-- [ ] All temporary files committed to `.gitignore` are excluded
+- [ ] Angular app builds locally: `npm run build`
+- [ ] All tests pass: `npm test -- --watch=false`
+- [ ] Repository is public (for GitHub Pages free tier)
+- [ ] `404.html` exists in `public/` directory for SPA routing
 
 ### Pre-Deployment Commands
 
@@ -37,488 +35,526 @@ git status
 git log --oneline -5
 
 # Verify build
-mvn clean install
-mvn test
+cd src/main/angular-app
+npm ci
+npm run build
+npm test -- --watch=false --browsers=ChromeHeadless
 
-# Test Docker build
-docker build -t test:latest .
-docker run --rm test:latest java -version
+# Clean up
+rm -rf dist/ node_modules/
+cd ../../../
+git status
 ```
 
 ---
 
-## ☁️ DigitalOcean App Platform (Recommended)
+## 🚀 GitHub Pages (Recommended)
 
-**Advantages**: 
-- Easiest setup for teams
-- Automatic scaling
-- Built-in SSL
-- GitHub integration for CI/CD
-- Managed database options
+**Advantages:**
+- ✅ Free tier for public repositories
+- ✅ Automatic HTTPS/TLS
+- ✅ No backend infrastructure needed
+- ✅ Auto-deploys on push to main
+- ✅ GitHub Actions included
+- ✅ Perfect for static Angular SPA
 
-### Step 1: Push Code to GitHub
+**How It Works:**
+1. GitHub Actions builds your Angular app on every push
+2. Built files are deployed to `gh-pages` branch
+3. GitHub Pages serves from that branch
+4. **SPA routing**: 404.html redirects all routes to index.html
 
-```bash
-git remote add origin https://github.com/your-username/beginner-kayak-class.git
-git branch -M main
-git push -u origin main
-```
+### Setup GitHub Pages Deployment
 
-### Step 2: Create DigitalOcean Account & Project
+#### Step 1: Enable GitHub Pages in Repository Settings
 
-1. Sign up at [DigitalOcean](https://digitalocean.com)
-2. Create a new project: Dashboard → Create → Project
-3. Name it: "Beginner Kayak Class"
+1. Go to GitHub → Your Repository → **Settings** → **Pages**
+2. Under "Build and deployment":
+   - **Source**: Select "GitHub Actions"
+   - **Branch**: (auto-configured by workflow)
+3. Click Save
 
-### Step 3: Create MySQL Database
+#### Step 2: Verify GitHub Actions Workflow
 
-1. Go to **Databases** → **Create Database**
-   - **Type**: MySQL 8
-   - **Region**: Same as app (e.g., New York 1)
-   - **Name**: `beginner-kayak-class-db`
-   - **High Availability**: Check for production
-
-2. Note the **connection details** (host, port, username, password, database name)
-
-3. Save connection string for later use
-
-### Step 4: Deploy Application via App Platform
-
-#### Option A: Using Docker Image (Recommended)
-
-1. **Create App Platform App**:
-   - Dashboard → Create → App
-   - Select "GitHub" as source
-   - Connect your repository
-   - Select branch: `main`
-
-2. **Configure Build Settings**:
-   ```yaml
-   name: beginner-kayak-class
-   services:
-   - name: api
-     source:
-       type: github
-       repo: your-username/beginner-kayak-class
-       branch: main
-     build_command: |
-       docker build -t beginner-kayak-class:latest .
-     run_command: java -jar app.jar
-     http_port: 8080
-     health_check:
-       http_path: /
-   
-   databases:
-   - engine: MYSQL
-     production: true
-     name: kayak-db
-     version: "8.0"
-   ```
-
-3. **Add Environment Variables** (under App Settings → Variables):
-   ```
-   DB_HOST=${db.HOSTNAME}
-   DB_PORT=${db.PORT}
-   DB_NAME=${db.NAME}
-   DB_USER=${db.USERNAME}
-   DB_PASSWORD=${db.PASSWORD}
-   ```
-
-4. **Deploy**: Click "Deploy" and wait for completion
-
-#### Option B: Using Buildpack (Alternative)
-
-1. Create `app.yaml` in repository root:
+The workflow file [`.github/workflows/deploy-github-pages.yml`](.github/workflows/deploy-github-pages.yml) handles everything:
 
 ```yaml
-name: beginner-kayak-class
-services:
-- name: web
-  source_dir: .
-  build_command: mvn clean package
-  run_command: java -jar target/BeginnerKayakClass2-0.0.1-SNAPSHOT.jar
-  http_port: 8080
-  envs:
-  - key: SPRING_DATASOURCE_URL
-    value: jdbc:mysql://${db.HOSTNAME}:${db.PORT}/${db.NAME}?useSSL=true
-  - key: SPRING_DATASOURCE_USERNAME
-    value: ${db.USERNAME}
-  - key: SPRING_DATASOURCE_PASSWORD
-    value: ${db.PASSWORD}
-  - key: JAVA_TOOL_OPTIONS
-    value: "-Xmx512m -Xms256m"
-
-databases:
-- engine: MYSQL
-  production: true
-  name: kayak-db
+# This workflow:
+# 1. Triggers on push to main
+# 2. Installs Angular dependencies
+# 3. Builds production Angular app
+# 4. Copies 404.html for SPA routing
+# 5. Deploys to GitHub Pages
 ```
 
-2. Commit and push:
+No additional configuration needed! The workflow is ready to use.
+
+#### Step 3: Deploy
+
+Simply push to main:
+
 ```bash
-git add app.yaml
-git commit -m "Add App Platform configuration"
+git add .
+git commit -m "Deploy to GitHub Pages"
 git push origin main
 ```
 
-### Step 5: Connect Custom Domain (Optional)
+GitHub Actions will:
+1. Build the Angular app (~ 2-3 minutes)
+2. Deploy automatically to `https://username.github.io/BeginnerKayakClass-Backup/`
+3. Show deployment status in **Actions** tab
 
-1. In App Platform → Settings → Domains
-2. Add your domain or use DigitalOcean subdomain
-3. Configure DNS records
-4. SSL certificate auto-generated
+**View Deployment:**
+- **Live Site**: `https://username.github.io/BeginnerKayakClass-Backup/`
+- **Workflow Runs**: Repository → **Actions** tab
+- **Deployment History**: Settings → **Deployments**
 
-### Step 6: Monitor Deployment
+#### Step 4: Verify SPA Routing Works
 
-```bash
-# In App Platform Dashboard
-- View deployment logs
-- Check application status
-- Monitor resource usage
-```
-
----
-
-## 🚀 DigitalOcean Kubernetes (DOKS)
-
-For advanced deployments with higher traffic:
-
-### Create Kubernetes Cluster
-
-1. **Create DOKS Cluster**:
-   ```bash
-   doctl kubernetes cluster create kayak-cluster \
-     --region nyc1 \
-     --size s-2vcpu-2gb \
-     --count 3
-   ```
-
-2. **Configure kubectl**:
-   ```bash
-   doctl kubernetes cluster kubeconfig save kayak-cluster
-   kubectl config use-context do-nyc1-kayak-cluster
-   ```
-
-### Deploy Using Helm
-
-1. **Create Helm Chart**:
-   ```bash
-   helm create kayak-app
-   cd kayak-app
-   ```
-
-2. **Update values.yaml**:
-   ```yaml
-   image:
-     repository: your-docker-hub/beginner-kayak-class
-     tag: "1.0.0"
-   
-   service:
-     type: LoadBalancer
-     port: 80
-     targetPort: 8080
-   
-   env:
-     DB_HOST: mysql-service
-     DB_PORT: "3306"
-   
-   resources:
-     limits:
-       cpu: 500m
-       memory: 512Mi
-     requests:
-       cpu: 250m
-       memory: 256Mi
-   ```
-
-3. **Deploy**:
-   ```bash
-   helm install kayak-app ./kayak-app
-   ```
-
----
-
-## 🐳 Docker Hub Setup
-
-### Build & Push Docker Image
+Test that routes work correctly:
 
 ```bash
-# Login to Docker Hub
-docker login
+# These should all work:
+https://username.github.io/BeginnerKayakClass-Backup/
+https://username.github.io/BeginnerKayakClass-Backup/river1
+https://username.github.io/BeginnerKayakClass-Backup/classroom
+https://username.github.io/BeginnerKayakClass-Backup/pool1
 
-# Build image
-docker build -t your-username/beginner-kayak-class:1.0.0 .
-docker tag beginner-kayak-class:1.0.0 your-username/beginner-kayak-class:latest
-
-# Push to Docker Hub
-docker push your-username/beginner-kayak-class:1.0.0
-docker push your-username/beginner-kayak-class:latest
-
-# Verify
-docker pull your-username/beginner-kayak-class:latest
-docker run -p 8080:8080 your-username/beginner-kayak-class:latest
+# And refreshing the page should NOT give 404 errors
 ```
 
-### Configure Private Repository (Optional)
-
-1. On Docker Hub: Create Repository → Private
-2. Generate access token: Account Settings → Security
-3. In DigitalOcean: Create Registry authentication secret
+How it works:
+1. You navigate to `/river1` (doesn't exist on server)
+2. GitHub Pages serves `404.html`
+3. `404.html` contains JavaScript that redirects to `index.html`
+4. Angular Router handles the navigation to `/river1`
 
 ---
 
-## 🗄️ Database Setup
+## 🌐 GitHub Pages with Custom Domain
 
-### Initial Database Creation
+Want to use your own domain instead of `github.io`?
 
-#### MySQL via DigitalOcean
+### Prerequisites
 
-1. Created in DigitalOcean Databases (see step 3 above)
-2. Connection info provided in dashboard
+- A registered domain (e.g., `beginnerkayakclass.com`)
+- Access to domain registrar's DNS settings
+- GitHub Pages enabled (see above)
 
-#### Manual SQL Script
+### Setup Custom Domain
 
-Create `init-db.sql`:
+#### Step 1: Add Domain to GitHub Pages
 
-```sql
--- Create database
-CREATE DATABASE IF NOT EXISTS `beginner-kayak-class`;
-USE `beginner-kayak-class`;
+1. Go to Repository → **Settings** → **Pages**
+2. Under "Custom domain", enter your domain: `beginnerkayakclass.com`
+3. Click Save
+4. GitHub automatically creates `CNAME` file
 
--- Create tables (automatically done by Hibernate on first run)
--- Ensure spring.jpa.hibernate.ddl-auto=update for first deployment
--- Then change to 'validate' in production
+#### Step 2: Configure DNS
+
+**Option A: Using Apex Domain (beginnerkayakclass.com)**
+
+In your domain registrar's DNS settings, create **A records** pointing to GitHub Pages:
+
+```dns
+Host: @
+Type: A
+Value: 185.199.108.153
+
+Host: @
+Type: A
+Value: 185.199.109.153
+
+Host: @
+Type: A
+Value: 185.199.110.153
+
+Host: @
+Type: A
+Value: 185.199.111.153
 ```
 
-#### Run Initial Migration
+**Option B: Using Subdomain (kayak.example.com)**
 
-1. Set `spring.jpa.hibernate.ddl-auto=update` in `application.properties`
-2. Deploy application (Hibernate will create tables)
-3. Change to `validate` after initial deployment
-4. Commit and redeploy
+```dns
+Host: kayak
+Type: CNAME
+Value: username.github.io
+```
 
-### Backup & Restore
+⚠️ **Note**: Apex domain (Option A) is recommended. Subdomain setup requires `username.github.io` as value.
+
+#### Step 3: Enable HTTPS
+
+1. After DNS propagates (5-30 minutes):
+   - Go to Settings → Pages
+   - Check "Enforce HTTPS"
+   - Wait for SSL certificate (auto-generated by Let's Encrypt)
+
+2. Verify certificate status in Settings → Pages
+
+#### Step 4: Test
 
 ```bash
-# Backup
-mysqldump -h <host> -u <user> -p beginner-kayak-class > backup.sql
+# Should work after DNS propagates
+https://beginnerkayakclass.com
+https://beginnerkayakclass.com/river1
 
-# Restore
-mysql -h <host> -u <user> -p beginner-kayak-class < backup.sql
-
-# Via DigitalOcean CLI
-doctl databases backup create kayak-db --backup-name "2026-01-18"
+# Old GitHub Pages URL redirects
+https://username.github.io/BeginnerKayakClass-Backup/ → https://beginnerkayakclass.com/
 ```
 
 ---
 
-## 🔐 SSL/TLS Configuration
+## 📊 DigitalOcean Static Hosting
 
-### DigitalOcean App Platform
+If you prefer managed static hosting with more control:
 
-- **Automatic**: SSL certificate auto-generated for all apps
-- **Custom Domain**: Managed by Let's Encrypt
-- **HTTPS**: Enforced by default
+### Setup on DigitalOcean
 
-### Manual NGINX Configuration (if using DOKS)
-
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name yourdomain.com;
-
-    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
-
-    location / {
-        proxy_pass http://kayak-app:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
----
-
-## 📊 Monitoring & Logging
-
-### DigitalOcean Application Insights
-
-1. In App Platform → Metrics
-   - CPU Usage
-   - Memory Usage
-   - Request Rate
-   - Response Time
-
-2. Logs → Application Logs
-   - Filter by deployment
-   - Search for errors
-
-### Application Logging
-
-Update `src/main/resources/application.properties`:
-
-```properties
-logging.level.root=INFO
-logging.level.com.crookedlinedesign=DEBUG
-logging.file.name=/var/log/app/application.log
-logging.file.max-size=10MB
-logging.file.max-history=30
-```
-
-### External Monitoring (Optional)
+#### Step 1: Build Angular App Locally
 
 ```bash
-# New Relic
-docker run -e NEW_RELIC_LICENSE_KEY=<key> ...
+cd src/main/angular-app
+npm ci
+npm run build
 
-# Datadog
-docker run -e DD_API_KEY=<key> ...
+# Output: dist/angular-app/
+```
+
+#### Step 2: Upload to DigitalOcean
+
+**Option A: Using DigitalOcean App Platform**
+
+1. Go to [DigitalOcean Dashboard](https://cloud.digitalocean.com/)
+2. Click **Create** → **App**
+3. Select **GitHub** → Connect repository
+4. Choose `main` branch
+5. Create file `app.yaml` in repo root:
+
+```yaml
+name: beginner-kayak-class
+static_sites:
+  - name: web
+    source_dir: src/main/angular-app/dist/angular-app
+    routes:
+      - path: /
+        match_prefix: true
+        redirect_uri: /index.html
+        redirect_code: 200
+```
+
+6. Commit and push:
+
+```bash
+git add app.yaml
+git commit -m "Add DigitalOcean App Platform config"
+git push origin main
+```
+
+7. DigitalOcean auto-deploys on every push
+
+**Option B: Using DigitalOcean Spaces (CDN)**
+
+1. Create Space: **Spaces** → **Create Space**
+2. Build and upload files:
+
+```bash
+# Build Angular app
+cd src/main/angular-app && npm run build
+
+# Configure doctl CLI
+doctl auth init
+
+# Upload to Spaces
+doctl compute spaces upload dist/angular-app/* \
+  --recursive \
+  your-space-name/
+```
+
+3. Enable CDN access in Space settings
+4. Configure custom domain
+
+#### Step 3: Configure SPA Routing
+
+In DigitalOcean App Platform:
+
+1. Go to Settings → **Routing Rules**
+2. Add catch-all rule:
+
+```yaml
+routes:
+  - path: /
+    match_prefix: true
+    redirect_uri: /index.html
+    redirect_code: 200
+```
+
+3. Redeploy app
+
+---
+
+## 💻 Local Development
+
+### Development Server
+
+```bash
+# Navigate to Angular app
+cd src/main/angular-app
+
+# Install dependencies
+npm install
+
+# Start dev server
+npm start
+
+# Open http://localhost:4200
+```
+
+### Building for Production
+
+```bash
+cd src/main/angular-app
+
+# Build with optimization
+npm run build
+
+# Output in: dist/angular-app/
+
+# Preview build
+npx http-server dist/angular-app/ -p 8080
+```
+
+### Testing
+
+```bash
+cd src/main/angular-app
+
+# Run unit tests
+npm test
+
+# Run in headless mode (CI)
+npm test -- --watch=false --browsers=ChromeHeadless
+
+# Check coverage
+npm test -- --code-coverage
 ```
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Common Issues
+### SPA Routing Issues
 
-#### 1. Application Won't Start
+**Problem**: Page shows 404 when navigating to routes directly
+
+**Solution**:
+- Ensure `404.html` exists in `public/` directory
+- Verify GitHub Pages deployment includes `404.html`
+- Check GitHub Actions logs: Repository → **Actions** tab
 
 ```bash
-# Check logs
-doctl apps logs list <app-id>
-doctl apps logs get <app-id> --follow
+# Verify locally
+npx http-server dist/angular-app/
 
-# Check environment variables
-- Verify DB_HOST, DB_PORT, DB_NAME are correct
-- Ensure database is accessible from app
+# Try navigating to non-existent route
+# http://localhost:8080/river1
+# Should redirect via 404.html
 ```
 
-#### 2. Database Connection Failed
+### GitHub Pages Not Updating
+
+**Problem**: Changes not showing after push
+
+**Solution**:
+1. Check GitHub Actions: Repository → **Actions**
+2. Look for failed workflows (red ❌)
+3. Click on workflow run for error details
+4. Common issues:
+   - `npm ci` failed → check `package-lock.json`
+   - Build failed → check console output
+   - Deploy failed → check permissions
 
 ```bash
-# Test connection
-mysql -h <host> -u <user> -p <database>
-
-# Check firewall
-- Ensure DigitalOcean firewall allows app to database connection
-- In Networking → Firewalls → Inbound Rules
+# Force rebuild by amending commit
+git commit --amend --no-edit
+git push origin main --force
 ```
 
-#### 3. Out of Memory
+### Build Fails with Angular Errors
 
+**Problem**: `npm run build` fails
+
+**Solution**:
 ```bash
-# Increase memory
-- In app.yaml: increase memory allocation
-- Set JVM options: JAVA_TOOL_OPTIONS=-Xmx1024m
-- Redeploy
+# Clean install
+rm -rf node_modules package-lock.json
+npm install
+
+# Run build with verbose output
+npm run build -- --verbose
+
+# Check for TypeScript errors
+npx tsc --noEmit
 ```
 
-#### 4. High CPU Usage
+### Assets Not Loading
+
+**Problem**: Images/CSS/fonts return 404
+
+**Solution**:
+- Ensure assets are in `src/assets/`
+- Check `angular.json` assets configuration
+- Verify relative paths in CSS/HTML use correct paths
+- For GitHub Pages with sub-path, use base-href:
 
 ```bash
-# Analyze
-- Check application logs for errors
-- Monitor DB queries
-- Consider database query optimization
+# Build with base-href for non-root deployment
+npm run build -- --base-href=/BeginnerKayakClass-Backup/
 ```
 
-#### 5. Static Files Not Loading
+### Custom Domain Not Working
+
+**Problem**: Custom domain shows GitHub's error page
+
+**Solution**:
+1. Verify `CNAME` file exists in gh-pages branch:
+   ```bash
+   # Check repo settings - should auto-create
+   ```
+2. Check DNS settings:
+   ```bash
+   # Verify DNS records are propagated
+   nslookup beginnerkayakclass.com
+   dig beginnerkayakclass.com
+   ```
+3. Wait for HTTPS certificate (can take 5-30 min):
+   - Settings → Pages → Check certificate status
+4. Hard refresh browser (Ctrl+Shift+R)
+
+### High Bandwidth Usage
+
+**Problem**: DigitalOcean Space charges for bandwidth
+
+**Solution**:
+- Use GitHub Pages (no bandwidth charges)
+- Or enable DigitalOcean CDN to cache static files
+- Monitor usage: DigitalOcean Dashboard → Spaces → Metrics
+
+---
+
+## 📈 Monitoring & Analytics
+
+### GitHub Pages Deployment Analytics
+
+Repository → **Insights** → **Traffic**
+
+### Track Application Errors (Optional)
+
+1. Integrate Sentry or Datadog:
 
 ```bash
-# Verify Angular build
-cd src/main/angular-app && npm run build
-
-# Check Docker build output
-docker build -v .
-
-# Ensure compiled assets in target/classes/static/
+npm install @sentry/angular
 ```
 
-### Debug Commands
+2. Configure in `main.ts`:
 
+```typescript
+import * as Sentry from "@sentry/angular";
+
+Sentry.init({
+  dsn: "YOUR_SENTRY_DSN",
+  environment: "production",
+});
+```
+
+### Application Performance
+
+Use Angular DevTools:
 ```bash
-# SSH into container (DOKS)
-kubectl exec -it <pod-name> -- /bin/sh
-
-# Check running processes
-ps aux
-
-# Monitor resources
-top
-
-# Check network connectivity
-curl http://kayak-db:3306
+# In Chrome DevTools console
+ng.probe($0).componentInstance
 ```
 
 ---
 
-## 📈 Scaling & Performance
+## 🔄 Continuous Deployment Workflow
 
-### Auto-Scaling (App Platform)
+### Automated Workflow
 
-1. Settings → Auto-Scaling
-   - Metric: CPU Utilization
-   - Min Instances: 2
-   - Max Instances: 5
-   - Threshold: 75%
+1. **Commit & Push**:
+   ```bash
+   git add .
+   git commit -m "Update content"
+   git push origin main
+   ```
 
-### Database Optimization
+2. **GitHub Actions Triggers**:
+   - Runs: [`.github/workflows/deploy-github-pages.yml`](.github/workflows/deploy-github-pages.yml)
+   - Builds: Angular app
+   - Tests: Unit tests
+   - Deploys: To GitHub Pages
 
-- Enable query caching
-- Add indexes to frequently queried fields
-- Use connection pooling (configured in `application.properties`)
+3. **View Status**:
+   - Repository → **Actions** tab
+   - Shows real-time build/deploy status
+   - Estimated time: 2-5 minutes
 
-### CDN for Static Assets
+4. **Live Update**:
+   - Site automatically updates after deploy succeeds
+   - Changes visible in ~5 minutes
 
+---
+
+## 📝 Migration Notes (Spring Boot → Static)
+
+### What Changed
+
+- **Removed**: Spring Boot (no backend)
+- **Removed**: Java code (all static now)
+- **Removed**: pom.xml dependencies
+- **Added**: 404.html for SPA routing
+- **Added**: GitHub Pages workflow
+- **Updated**: Angular build output path
+
+### Why?
+
+1. No backend API required
+2. Simpler infrastructure
+3. Lower hosting costs
+4. Easier team handoff
+5. Faster deployment
+
+### Rollback?
+
+To restore Spring Boot:
 ```bash
-# Configure DigitalOcean Spaces (CDN)
-1. Create Space: Spaces → Create Space
-2. Upload Angular dist files
-3. Configure custom domain
-4. Update application to reference CDN URL
+git log --oneline
+git revert COMMIT_HASH
+git push origin main
 ```
 
 ---
 
-## 🔄 Continuous Deployment
+## 📞 Support & Resources
 
-### GitHub Actions CI/CD
+### Documentation
 
-Create `.github/workflows/deploy.yml`:
-
-```yaml
-name: Deploy to DigitalOcean
-
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - name: Build and Deploy
-      run: |
-        docker build -t your-username/beginner-kayak-class:latest .
-        docker push your-username/beginner-kayak-class:latest
-    - name: Trigger App Platform Deployment
-      run: |
-        curl -X POST "https://api.digitalocean.com/v2/apps/${{ secrets.DIGITALOCEAN_APP_ID }}/deployments" \
-          -H "Authorization: Bearer ${{ secrets.DIGITALOCEAN_TOKEN }}"
-```
-
----
-
-## 📞 Support
-
-- **DigitalOcean Docs**: https://docs.digitalocean.com
-- **Spring Boot**: https://spring.io/projects/spring-boot
+- **GitHub Pages**: https://pages.github.com
+- **GitHub Pages Custom Domain**: https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site
+- **GitHub Actions**: https://docs.github.com/en/actions
 - **Angular**: https://angular.io/docs
-- **Docker**: https://docs.docker.com
+- **DigitalOcean**: https://docs.digitalocean.com
+
+### Community
+
+- **GitHub Issues**: Report bugs in repository
+- **Angular Docs**: https://angular.io/docs
+- **Stack Overflow**: Tag `angular` or `github-pages`
 
 ---
 
-**Last Updated**: January 2026
+**Last Updated**: January 2026  
+**Current Deployment**: GitHub Pages  
+**Status**: ✅ Static SPA (No Backend)  
 **Next Review**: April 2026
