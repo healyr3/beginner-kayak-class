@@ -36,7 +36,7 @@ jobs:
 
     - name: Build Angular app for GitHub Pages
       working-directory: src/main/angular-app
-      run: npm run build -- --configuration production --base-href=/
+      run: npm run build -- --configuration production --base-href=/beginner-kayak-class/
 
     - name: Copy 404.html to dist
       run: |
